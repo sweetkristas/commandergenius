@@ -267,9 +267,9 @@ void SDL_ANDROID_CallJavaShowScreenKeyboard(const char * oldText, char * outBuf,
 }
 
 JNIEXPORT void JNICALL 
-JAVA_EXPORT_NAME(DemoRenderer_nativeInitJavaCallbacks) ( JNIEnv*  env, jobject thiz )
+JAVA_EXPORT_NAME(DemoRenderer_nativeInitJavaCallbacks) ( JNIEnv*  env, jobject thiz)
 {
-	JavaEnv = env;
+	JavaEnv = env; 
 	JavaRenderer = thiz;
 	
 	JavaRendererClass = (*JavaEnv)->GetObjectClass(JavaEnv, thiz);

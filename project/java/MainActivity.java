@@ -67,12 +67,14 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.os.Handler;
 import android.os.Message;
+import android.content.res.AssetManager;
 
 public class MainActivity extends Activity {
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 
+		assetManager = getAssets();
 		instance = this;
 		// fullscreen mode
 		requestWindowFeature(Window.FEATURE_NO_TITLE);
@@ -751,6 +753,7 @@ public class MainActivity extends Activity {
 
 	public LinkedList<Integer> textInput = new LinkedList<Integer> ();
 	public static MainActivity instance = null;
+	public static AssetManager assetManager;
 }
 
 // *** HONEYCOMB / ICS FIX FOR FULLSCREEN MODE, by lmak ***

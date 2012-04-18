@@ -439,20 +439,22 @@ JAVA_EXPORT_NAME(DemoGLSurfaceView_nativeMouse) ( JNIEnv*  env, jobject  thiz, j
 
 		// The old, bad, deprecated, but still used multitouch API
 		if( action == MOUSE_DOWN )
-			SDL_ANDROID_MainThreadPushJoystickButton(pointerId+1, 0, SDL_PRESSED);
+			SDL_ANDROID_MainThreadPushJoystickButton(pointerId+1, 0, SDL_PRESSED, x, y);
 		SDL_ANDROID_MainThreadPushJoystickAxis(pointerId+1, 0, x);
 		SDL_ANDROID_MainThreadPushJoystickAxis(pointerId+1, 1, y);
 		SDL_ANDROID_MainThreadPushJoystickAxis(pointerId+1, 2, force);
 		SDL_ANDROID_MainThreadPushJoystickAxis(pointerId+1, 3, radius);
 		if( action == MOUSE_UP )
-			SDL_ANDROID_MainThreadPushJoystickButton(pointerId+1, 0, SDL_RELEASED);
+			SDL_ANDROID_MainThreadPushJoystickButton(pointerId+1, 0, SDL_RELEASED, x, y);
 		// The new, good, clean multitouch API, which is using only the first joystick, and sending both X and Y coords simultaneously in one event
-		if( action == MOUSE_DOWN )
-			SDL_ANDROID_MainThreadPushJoystickButton(0, pointerId, SDL_PRESSED);
+		if( action == MOUSE_DOWN ) {
+			//__android_log_print( ANDROID_LOG_INFO, "Frogatto", "Mouse down (%d,%d;%d)", x, y, pointerId);
+			SDL_ANDROID_MainThreadPushJoystickButton(0, pointerId, SDL_PRESSED, x, y);
+		}
 		SDL_ANDROID_MainThreadPushJoystickBall(0, pointerId, x, y);
 		SDL_ANDROID_MainThreadPushJoystickAxis(0, pointerId+3, force + radius); // Radius is more sensitive usually
 		if( action == MOUSE_UP )
-			SDL_ANDROID_MainThreadPushJoystickButton(0, pointerId, SDL_RELEASED);
+			SDL_ANDROID_MainThreadPushJoystickButton(0, pointerId, SDL_RELEASED, x, y);
 	}
 	if( !isMouseUsed && !SDL_ANDROID_isTouchscreenKeyboardUsed )
 	{
@@ -1397,7 +1399,7 @@ extern void SDL_ANDROID_PumpEvents()
 				break;
 			case SDL_JOYBUTTONDOWN:
 				if( ev.jbutton.which < MAX_MULTITOUCH_POINTERS+1 && SDL_ANDROID_CurrentJoysticks[ev.jbutton.which] )
-					SDL_PrivateJoystickButton( SDL_ANDROID_CurrentJoysticks[ev.jbutton.which], ev.jbutton.button, ev.jbutton.state );
+					SDL_PrivateJoystickButton( SDL_ANDROID_CurrentJoysticks[ev.jbutton.which], ev.jbutton.button, ev.jbutton.state, ev.jbutton.x, ev.jbutton.y );
 				break;
 			case SDL_JOYBALLMOTION:
 				if( ev.jball.which < MAX_MULTITOUCH_POINTERS+1 && SDL_ANDROID_CurrentJoysticks[ev.jbutton.which] )
@@ -1615,7 +1617,7 @@ extern void SDL_ANDROID_MainThreadPushJoystickAxis(int joy, int axis, int value)
 	BufferedEventsEnd = nextEvent;
 	SDL_mutexV(BufferedEventsMutex);
 };
-extern void SDL_ANDROID_MainThreadPushJoystickButton(int joy, int button, int pressed)
+extern void SDL_ANDROID_MainThreadPushJoystickButton(int joy, int button, int pressed, int x, int y)
 {
 	if( ! ( joy < MAX_MULTITOUCH_POINTERS+1 && SDL_ANDROID_CurrentJoysticks[joy] ) )
 		return;
@@ -1630,6 +1632,8 @@ extern void SDL_ANDROID_MainThreadPushJoystickButton(int joy, int button, int pr
 	ev->jbutton.which = joy;
 	ev->jbutton.button = button;
 	ev->jbutton.state = pressed;
+	ev->jbutton.x = x;
+	ev->jbutton.y = y;
 	
 	BufferedEventsEnd = nextEvent;
 	SDL_mutexV(BufferedEventsMutex);

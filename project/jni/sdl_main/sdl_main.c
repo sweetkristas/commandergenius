@@ -31,15 +31,22 @@ static char ** argv = NULL;
 
 static JNIEnv*  static_env = NULL;
 static jobject static_thiz = NULL;
+static jobject static_assetManager = NULL;
 
-JNIEnv* SDL_ANDROID_JniEnv()
+AAssetManager* SDL_ANDROID_JavaAssetManager()
 {
-	return static_env;
+    AAssetManager* mgr = AAssetManager_fromJava(static_env,static_assetManager);
+    return mgr;
 }
-jobject SDL_ANDROID_JniVideoObject()
+
+/*AAssetManager* AAssetManager_fromJava(JNIEnv* env, jobject assetManager)
 {
-	return static_thiz;
-}
+    jclass amClass = (*env)->FindClass(env,"android/content/res/AssetManager");
+    jfieldID mObject = (*env)->GetFieldID(env,amClass, "mObject", "I");
+    return (AAssetManager*) (*env)->GetIntField(env,assetManager, mObject);
+}*/
+
+
 
 #if SDL_VERSION_ATLEAST(1,3,0)
 #else
@@ -57,7 +64,7 @@ int threadedMain(void * unused)
 #endif
 
 extern C_LINKAGE void
-JAVA_EXPORT_NAME(DemoRenderer_nativeInit) ( JNIEnv*  env, jobject thiz, jstring jcurdir, jstring cmdline, jint multiThreadedVideo )
+JAVA_EXPORT_NAME(DemoRenderer_nativeInit) ( JNIEnv*  env, jobject thiz, jstring jcurdir, jstring cmdline, jint multiThreadedVideo, jobject assetManager )
 {
 	int i = 0;
 	char curdir[PATH_MAX] = "";
@@ -66,6 +73,7 @@ JAVA_EXPORT_NAME(DemoRenderer_nativeInit) ( JNIEnv*  env, jobject thiz, jstring 
 
 	static_env = env;
 	static_thiz = thiz;
+	static_assetManager = assetManager;
 
 	strcpy(curdir, "/sdcard/app-data/");
 	strcat(curdir, SDL_CURDIR_PATH);
@@ -118,7 +126,10 @@ JAVA_EXPORT_NAME(DemoRenderer_nativeInit) ( JNIEnv*  env, jobject thiz, jstring 
 
 	for( i = 0; i < argc; i++ )
 		__android_log_print(ANDROID_LOG_INFO, "libSDL", "param %d = \"%s\"", i, argv[i]);
+	__android_log_print(ANDROID_LOG_INFO, "libSDL", "multiThreadedVideo=%d", multiThreadedVideo);
 
+	extern void app_set_asset_manager(AAssetManager*);
+	app_set_asset_manager(SDL_ANDROID_JavaAssetManager());
 #if SDL_VERSION_ATLEAST(1,3,0)
 	SDL_main( argc, argv );
 #else

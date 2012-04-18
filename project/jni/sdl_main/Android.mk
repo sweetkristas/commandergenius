@@ -16,6 +16,6 @@ LOCAL_CPP_EXTENSION := .cpp
 LOCAL_SRC_FILES := sdl_main.c
 
 LOCAL_SHARED_LIBRARIES := sdl-$(SDL_VERSION) application
-LOCAL_LDLIBS := -llog
+LOCAL_LDLIBS := -llog -landroid
 
 include $(BUILD_SHARED_LIBRARY)

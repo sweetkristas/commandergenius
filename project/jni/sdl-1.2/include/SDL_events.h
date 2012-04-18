@@ -185,6 +185,7 @@ typedef struct SDL_JoyButtonEvent {
 	Uint8 which;	/**< The joystick device index */
 	Uint8 button;	/**< The joystick button index */
 	Uint8 state;	/**< SDL_PRESSED or SDL_RELEASED */
+	Uint16 x, y;	/**< The X/Y coordinates of the mouse at press time */
 } SDL_JoyButtonEvent;
 
 /** The "window resized" event

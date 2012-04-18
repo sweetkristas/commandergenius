@@ -187,47 +187,73 @@ abstract class DifferentTouchInput
 			int action = -1;
 
 			//System.out.println("Got motion event, type " + (int)(event.getAction()) + " X " + (int)event.getX() + " Y " + (int)event.getY());
-			if( (event.getAction() & MotionEvent.ACTION_MASK) == MotionEvent.ACTION_UP ||
-				(event.getAction() & MotionEvent.ACTION_MASK) == MotionEvent.ACTION_CANCEL )
+			int index = event.getActionIndex();
+			int action_masked = event.getActionMasked();
+			//System.out.println("Motion, index " + index+ " type " + action_masked + " (" + event.getX(index) + "," + event.getY(index) + ")");
+
+			if((action_masked & MotionEvent.ACTION_UP) != 0)
 			{
 				action = Mouse.SDL_FINGER_UP;
-				for( int i = 0; i < TOUCH_EVENTS_MAX; i++ )
+				//for( int i = 0; i < TOUCH_EVENTS_MAX; i++ )
 				{
-					if( touchEvents[i].down )
+					int id = event.getPointerId(index);
+					if( id >= TOUCH_EVENTS_MAX )
+						id = TOUCH_EVENTS_MAX - 1;
+					if( touchEvents[id].down )
 					{
-						touchEvents[i].down = false;
-						DemoGLSurfaceView.nativeMouse( touchEvents[i].x, touchEvents[i].y, action, i, touchEvents[i].pressure, touchEvents[i].size );
+						touchEvents[id].down = false;
+						DemoGLSurfaceView.nativeMouse( touchEvents[id].x, touchEvents[id].y, action, id, touchEvents[index].pressure, touchEvents[id].size );
 					}
 				}
 			}
-			if( (event.getAction() & MotionEvent.ACTION_MASK) == MotionEvent.ACTION_DOWN )
+			//if( (event.getAction() & MotionEvent.ACTION_MASK) == MotionEvent.ACTION_DOWN)
+			if((action_masked & MotionEvent.ACTION_UP) == 0)
 			{
 				action = Mouse.SDL_FINGER_DOWN;
-				for( int i = 0; i < event.getPointerCount(); i++ )
+				//for( int i = 0; i < event.getPointerCount(); i++ )
 				{
-					int id = event.getPointerId(i);
+					int id = event.getPointerId(index);
 					if( id >= TOUCH_EVENTS_MAX )
 						id = TOUCH_EVENTS_MAX - 1;
-					touchEvents[id].down = true;
-					touchEvents[id].x = (int)event.getX(i);
-					touchEvents[id].y = (int)event.getY(i);
-					touchEvents[id].pressure = (int)(event.getPressure(i) * 1000.0);
-					touchEvents[id].size = (int)(event.getSize(i) * 1000.0);
-					DemoGLSurfaceView.nativeMouse( touchEvents[id].x, touchEvents[id].y, action, id, touchEvents[id].pressure, touchEvents[id].size );
+					if(!touchEvents[id].down) 
+					{
+						touchEvents[id].down = true;
+						touchEvents[id].x = (int)event.getX(index);
+						touchEvents[id].y = (int)event.getY(index);
+						touchEvents[id].pressure = (int)(event.getPressure(index) * 1000.0);
+						touchEvents[id].size = (int)(event.getSize(index) * 1000.0);
+						DemoGLSurfaceView.nativeMouse( touchEvents[id].x, touchEvents[id].y, action, id, touchEvents[id].pressure, touchEvents[id].size );
+					}
 				}
 			}
-			if( (event.getAction() & MotionEvent.ACTION_MASK) == MotionEvent.ACTION_MOVE ||
+			if((action_masked & MotionEvent.ACTION_MOVE) != 0)
+			{
+				action = Mouse.SDL_FINGER_MOVE;
+				{
+					int id = event.getPointerId(index);
+					if( id >= TOUCH_EVENTS_MAX )
+						id = TOUCH_EVENTS_MAX - 1;
+					//if(!touchEvents[id].down) 
+					{
+						touchEvents[id].down = true;
+						touchEvents[id].x = (int)event.getX(index);
+						touchEvents[id].y = (int)event.getY(index);
+						touchEvents[id].pressure = (int)(event.getPressure(index) * 1000.0);
+						touchEvents[id].size = (int)(event.getSize(index) * 1000.0);
+						DemoGLSurfaceView.nativeMouse( touchEvents[id].x, touchEvents[id].y, action, id, touchEvents[id].pressure, touchEvents[id].size );
+					}
+				}
+			}
+			/*if( (event.getAction() & MotionEvent.ACTION_MASK) == MotionEvent.ACTION_MOVE ||
 				(event.getAction() & MotionEvent.ACTION_MASK) == MotionEvent.ACTION_POINTER_DOWN ||
 				(event.getAction() & MotionEvent.ACTION_MASK) == MotionEvent.ACTION_POINTER_UP )
 			{
-				/*
-				String s = "MOVE: ptrs " + event.getPointerCount();
-				for( int i = 0 ; i < event.getPointerCount(); i++ )
-				{
-					s += " p" + event.getPointerId(i) + "=" + (int)event.getX(i) + ":" + (int)event.getY(i);
-				}
-				System.out.println(s);
-				*/
+				//String s = "MOVE: ptrs " + event.getPointerCount();
+				//for( int i = 0 ; i < event.getPointerCount(); i++ )
+				//{
+				//	s += " p" + event.getPointerId(i) + "=" + (int)event.getX(i) + ":" + (int)event.getY(i);
+				//}
+				//System.out.println(s);
 
 				for( int id = 0; id < TOUCH_EVENTS_MAX; id++ )
 				{
@@ -263,7 +289,7 @@ abstract class DifferentTouchInput
 						DemoGLSurfaceView.nativeMouse( touchEvents[id].x, touchEvents[id].y, action, id, touchEvents[id].pressure, touchEvents[id].size );
 					}
 				}
-			}
+			}*/
 			if( (event.getAction() & MotionEvent.ACTION_MASK) == MotionEvent.ACTION_HOVER_MOVE ) // Support bluetooth/USB mouse - available since Android 3.1
 			{
 				if( !ExternalMouseDetected )
@@ -411,7 +437,8 @@ class DemoRenderer extends GLSurfaceView_SDL.Renderer
 		 // Calls main() and never returns, hehe - we'll call eglSwapBuffers() from native code
 		nativeInit( Globals.DataDir,
 					Globals.CommandLine,
-					( (Globals.SwVideoMode && Globals.MultiThreadedVideo) || Globals.CompatibilityHacksVideo ) ? 1 : 0 );
+					( (Globals.SwVideoMode && Globals.MultiThreadedVideo) || Globals.CompatibilityHacksVideo ) ? 1 : 0,
+					context.assetManager);
 		System.exit(0); // The main() returns here - I don't bother with deinit stuff, just terminate process
 	}
 
@@ -520,7 +547,7 @@ class DemoRenderer extends GLSurfaceView_SDL.Renderer
 
 
 	private native void nativeInitJavaCallbacks();
-	private native void nativeInit(String CurrentPath, String CommandLine, int multiThreadedVideo);
+	private native void nativeInit(String CurrentPath, String CommandLine, int multiThreadedVideo,AssetManager assetManager);
 	private native void nativeResize(int w, int h, int keepAspectRatio);
 	private native void nativeDone();
 	private native void nativeGlContextLost();
