@@ -1,6 +1,6 @@
 /*
 Simple DirectMedia Layer
-Java source code (C) 2009-2011 Sergii Pylypenko
+Java source code (C) 2009-2012 Sergii Pylypenko
   
 This software is provided 'as-is', without any express or implied
 warranty.  In no event will the authors be held liable for any damages
@@ -198,6 +198,15 @@ class Settings
 		for( int i = 0; i < Globals.MultitouchGesturesUsed.length; i++ )
 			Globals.MultitouchGesturesUsed[i] = true;
 
+		System.out.println("android.os.Build.MODEL: " + android.os.Build.MODEL);
+		if( (android.os.Build.MODEL.equals("GT-N7000") || android.os.Build.MODEL.equals("SGH-I717"))
+			&& android.os.Build.VERSION.SDK_INT <= android.os.Build.VERSION_CODES.GINGERBREAD_MR1 )
+		{
+			// Samsung Galaxy Note generates a keypress when you hover a stylus over the screen, and that messes up OpenTTD dialogs
+			// ICS update sends events in a proper way
+			Globals.RemapHwKeycode[112] = SDL_1_2_Keycodes.SDLK_UNKNOWN;
+		}
+
 		try {
 			ObjectInputStream settingsFile = new ObjectInputStream(new FileInputStream( p.getFilesDir().getAbsolutePath() + "/" + SettingsFileName ));
 			if( settingsFile.readInt() != SETTINGS_FILE_VERSION )
@@ -315,30 +324,25 @@ class Settings
 		} catch ( IOException e ) {};
 		
 		if( Globals.DataDir.length() == 0 )
-			Globals.DataDir = Globals.DownloadToSdcard ?
-								Environment.getExternalStorageDirectory().getAbsolutePath() + "/app-data/" + Globals.class.getPackage().getName() :
-								p.getFilesDir().getAbsolutePath();
-
-		// This code fails for both of my phones!
-		/*
-		Configuration c = new Configuration();
-		c.setToDefaults();
-		
-		if( c.navigation == Configuration.NAVIGATION_TRACKBALL || 
-			c.navigation == Configuration.NAVIGATION_DPAD ||
-			c.navigation == Configuration.NAVIGATION_WHEEL )
 		{
-			Globals.AppNeedsArrowKeys = false;
+			if( !Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED) )
+			{
+				System.out.println("libSDL: SD card or external storage is not mounted (state " + Environment.getExternalStorageState() + "), switching to the internal storage.");
+				Globals.DownloadToSdcard = false;
+			}
+			Globals.DataDir = Globals.DownloadToSdcard ?
+								SdcardAppPath.get().path(p) :
+								p.getFilesDir().getAbsolutePath();
+			if( Globals.DownloadToSdcard )
+			{
+				// Check if data already installed into deprecated location at /sdcard/app-data/<package-name>
+				String[] fileList = new File(SdcardAppPath.deprecatedPath(p)).list();
+				if( fileList != null )
+					for( String s: fileList )
+						if( s.toUpperCase().startsWith(DataDownloader.DOWNLOAD_FLAG_FILENAME.toUpperCase()) )
+							Globals.DataDir = SdcardAppPath.deprecatedPath(p);
+			}
 		}
-		
-		System.out.println( "libSDL: Phone keypad type: " + 
-				(
-				c.navigation == Configuration.NAVIGATION_TRACKBALL ? "Trackball" :
-				c.navigation == Configuration.NAVIGATION_DPAD ? "Dpad" :
-				c.navigation == Configuration.NAVIGATION_WHEEL ? "Wheel" :
-				c.navigation == Configuration.NAVIGATION_NONAV ? "None" :
-				"Unknown" ) );
-		*/
 
 		System.out.println("libSDL: Settings.Load(): loading settings failed, running config dialog");
 		p.setUpStatusLabel();
@@ -416,65 +420,6 @@ class Settings
 	public static void showConfig(final MainActivity p, final boolean firstStart)
 	{
 		settingsChanged = true;
-		if( !Globals.BrokenLibCMessageShown )
-		{
-			Globals.BrokenLibCMessageShown = true;
-			try {
-				InputStream in = p.getAssets().open("stdout-test");
-				File outDir = p.getFilesDir();
-				try {
-					outDir.mkdirs();
-				} catch( SecurityException ee ) { };
-				
-				byte[] buf = new byte[16384];
-				OutputStream out = null;
-				String path = outDir.getAbsolutePath() + "/" + "stdout-test";
-
-				out = new FileOutputStream( path );
-				int len = in.read(buf);
-				while (len >= 0)
-				{
-					if(len > 0)
-						out.write(buf, 0, len);
-					len = in.read(buf);
-				}
-
-				out.flush();
-				out.close();
-				Settings.nativeChmod(path, 0755);
-				if( (new ProcessBuilder().command(path).start()).waitFor() != 42 )
-				{
-					System.out.println("libSDL: stdout-test FAILED, your libc is broken");
-					AlertDialog.Builder builder = new AlertDialog.Builder(p);
-					builder.setTitle(p.getResources().getString(R.string.broken_libc_title));
-					builder.setMessage(p.getResources().getString(R.string.broken_libc_text));
-					builder.setPositiveButton(p.getResources().getString(R.string.ok), new DialogInterface.OnClickListener()
-					{
-						public void onClick(DialogInterface dialog, int item) 
-						{
-							dialog.dismiss();
-							showConfig(p, firstStart);
-						}
-					});
-					builder.setOnCancelListener(new DialogInterface.OnCancelListener()
-					{
-						public void onCancel(DialogInterface dialog)
-						{
-							dialog.dismiss();
-							showConfig(p, firstStart);
-						}
-					});
-					AlertDialog alert = builder.create();
-					alert.setOwnerActivity(p);
-					alert.show();
-					return;
-				}
-				System.out.println("libSDL: stdout-test passed, your libc seems to be good");
-			} catch ( Exception eeee ) {
-				System.out.println("libSDL: Cannot run stdout-test: " + eeee.toString());
-			}
-		}
-
 		if( Globals.OptionalDataDownload == null )
 		{
 			String downloads[] = Globals.DataDownloadUrl.split("\\^");
@@ -1068,7 +1013,8 @@ class Settings
 		{
 			final CharSequence[] items = {
 				p.getResources().getString(R.string.controls_screenkb_by, "Ultimate Droid", "Sean Stieber"),
-				p.getResources().getString(R.string.controls_screenkb_by, "Simple Theme", "Beholder")
+				p.getResources().getString(R.string.controls_screenkb_by, "Simple Theme", "Beholder"),
+				p.getResources().getString(R.string.controls_screenkb_by, "Sun", "Sirea")
 				};
 
 			AlertDialog.Builder builder = new AlertDialog.Builder(p);
@@ -2265,7 +2211,7 @@ class Settings
 			void setupButton(boolean undo)
 			{
 				do {
-					currentButton += undo ? -1 : 1;
+					currentButton += (undo ? -1 : 1);
 					if(currentButton >= Globals.ScreenKbControlsLayout.length)
 					{
 						p.getVideoLayout().removeView(layout);
@@ -2301,6 +2247,11 @@ class Settings
 
 			public void onTouchEvent(final MotionEvent ev)
 			{
+				if(Globals.ScreenKbControlsLayout.length >= currentButton)
+				{
+					setupButton(false);
+					return;
+				}
 				if( ev.getAction() == MotionEvent.ACTION_DOWN )
 				{
 					Globals.ScreenKbControlsLayout[currentButton][0] = (int)ev.getX();
@@ -2460,6 +2411,8 @@ class Settings
 			Globals.SwVideoMode = true;
 			nativeSetCompatibilityHacks();
 		}
+		if( Globals.SwVideoMode )
+			nativeSetVideoForceSoftwareMode();
 		if( Globals.SwVideoMode && Globals.MultiThreadedVideo )
 			nativeSetVideoMultithreaded();
 		if( Globals.PhoneHasTrackball )
@@ -2534,22 +2487,29 @@ class Settings
 		// TODO: get current user name and set envvar USER, the API is not availalbe on Android 1.6 so I don't bother with this
 	}
 
-	static byte [] loadRaw(Activity p,int res)
+	static byte [] loadRaw(Activity p, int res)
 	{
 		byte [] buf = new byte[65536 * 2];
-		byte [] a = new byte[0];
+		byte [] a = new byte[65536 * 4 * 10]; // We need 2363516 bytes for the Sun theme
+		int written = 0;
 		try{
 			InputStream is = new GZIPInputStream(p.getResources().openRawResource(res));
 			int readed = 0;
 			while( (readed = is.read(buf)) >= 0 )
 			{
-				byte [] b = new byte [a.length + readed];
-				System.arraycopy(a, 0, b, 0, a.length);
-				System.arraycopy(buf, 0, b, a.length, readed);
-				a = b;
+				if( written + readed > a.length )
+				{
+					byte [] b = new byte [written + readed];
+					System.arraycopy(a, 0, b, 0, written);
+					a = b;
+				}
+				System.arraycopy(buf, 0, a, written, readed);
+				written += readed;
 			}
 		} catch(Exception e) {};
-		return a;
+		byte [] b = new byte [written];
+		System.arraycopy(a, 0, b, 0, written);
+		return b;
 	}
 	
 	static void SetupTouchscreenKeyboardGraphics(Activity p)
@@ -2558,8 +2518,8 @@ class Settings
 		{
 			if(Globals.TouchscreenKeyboardTheme < 0)
 				Globals.TouchscreenKeyboardTheme = 0;
-			if(Globals.TouchscreenKeyboardTheme > 1)
-				Globals.TouchscreenKeyboardTheme = 1;
+			if(Globals.TouchscreenKeyboardTheme > 2)
+				Globals.TouchscreenKeyboardTheme = 2;
 
 			if( Globals.TouchscreenKeyboardTheme == 0 )
 			{
@@ -2568,6 +2528,49 @@ class Settings
 			if( Globals.TouchscreenKeyboardTheme == 1 )
 			{
 				nativeSetupScreenKeyboardButtons(loadRaw(p, R.raw.simpletheme));
+			}
+			if( Globals.TouchscreenKeyboardTheme == 2 )
+			{
+				nativeSetupScreenKeyboardButtons(loadRaw(p, R.raw.sun));
+			}
+		}
+	}
+
+	abstract static class SdcardAppPath
+	{
+		public static SdcardAppPath get()
+		{
+			if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.FROYO)
+				return Froyo.Holder.sInstance;
+			else
+				return Dummy.Holder.sInstance;
+		}
+		public abstract String path(final Context p);
+		public static String deprecatedPath(final Context p)
+		{
+			return Environment.getExternalStorageDirectory().getAbsolutePath() + "/app-data/" + p.getPackageName();
+		}
+
+		private static class Froyo extends SdcardAppPath
+		{
+			private static class Holder
+			{
+				private static final Froyo sInstance = new Froyo();
+			}
+			public String path(final Context p)
+			{
+				return p.getExternalFilesDir(null).getAbsolutePath();
+			}
+		}
+		private static class Dummy extends SdcardAppPath
+		{
+			private static class Holder
+			{
+				private static final Dummy sInstance = new Dummy();
+			}
+			public String path(final Context p)
+			{
+				return Environment.getExternalStorageDirectory().getAbsolutePath() + "/Android/data/" + p.getPackageName() + "/files";
 			}
 		}
 	}
@@ -2582,7 +2585,6 @@ class Settings
 													int leftClickTimeout, int rightClickTimeout,
 													int relativeMovement, int relativeMovementSpeed,
 													int relativeMovementAccel, int showMouseCursor);
-	public static native void nativeSetExternalMouseDetected();
 	private static native void nativeSetJoystickUsed();
 	private static native void nativeSetMultitouchUsed();
 	private static native void nativeSetTouchscreenKeyboardUsed();
@@ -2590,6 +2592,7 @@ class Settings
 	private static native void nativeSetVideoDepth(int bpp, int gles2);
 	private static native void nativeSetCompatibilityHacks();
 	private static native void nativeSetVideoMultithreaded();
+	private static native void nativeSetVideoForceSoftwareMode();
 	private static native void nativeSetupScreenKeyboard(int size, int drawsize, int theme, int nbuttonsAutoFire, int transparency);
 	private static native void nativeSetupScreenKeyboardButtons(byte[] img);
 	private static native void nativeInitKeymap();

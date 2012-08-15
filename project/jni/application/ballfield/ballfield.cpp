@@ -9,8 +9,6 @@
  * software, or work derived from it, under other terms.
  */
 
-#include <sstream>
-#include <iostream>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -23,8 +21,10 @@
 /*----------------------------------------------------------
 	Definitions...
 ----------------------------------------------------------*/
+
 #define	SCREEN_W	320
-#define	SCREEN_H	240
+#define	SCREEN_H	200
+
 
 #define	BALLS	300
 
@@ -405,17 +405,9 @@ void tiled_back(SDL_Surface *back, SDL_Surface *screen, int xo, int yo)
 	SDL_BlitSurface(back, NULL, screen, &r);
 }
 
-
-
 /*----------------------------------------------------------
 	main()
 ----------------------------------------------------------*/
-
-extern "C" void unaligned_test(unsigned * data, unsigned * target);
-extern "C" unsigned val0, val1, val2, val3, val4;
-
-unsigned char data[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };
-//unsigned val0 = 0x12345678, val1 = 0x23456789, val2 = 0x34567890, val3 = 0x45678901, val4 = 0x56789012;
 
 int main(int argc, char* argv[])
 {
@@ -425,7 +417,7 @@ int main(int argc, char* argv[])
 	SDL_Surface	*back, *logo, *font, *font_hex;
 	SDL_Event	event;
 	int		bpp = 16,
-			flags = 0,
+			flags = SDL_HWSURFACE,
 			alpha = 1;
 	int		x_offs = 0, y_offs = 0;
 	long		tick,
@@ -558,39 +550,14 @@ int main(int argc, char* argv[])
 		SDL_BlitSurface(logo, NULL, screen, &r);
 
 		/* FPS counter */
-		if(tick > fps_start + 500)
+		if(tick > fps_start + 1000)
 		{
 			fps = (float)fps_count * 1000.0 / (tick - fps_start);
 			fps_count = 0;
 			fps_start = tick;
-
-			// This wonderful unaligned memory access scenario still fails on my HTC Evo and ADP1 devices, and even on the Beagleboard.
-			// I mean - the test fails, unaligned access works
-
-			// UNALIGNED MEMORY ACCESS HERE! However all the devices that I have won't report it and won't send a signal or write to the /proc/kmsg,
-			// despite the /proc/cpu/alignment flag set.
-/*
-			unsigned * ptr = (unsigned *)(data);
-			unaligned_test(ptr, &val0);
-			* ((unsigned *)&ptr) += 1;
-			unaligned_test(ptr, &val1);
-			* ((unsigned *)&ptr) += 1;
-			unaligned_test(ptr, &val2);
-			* ((unsigned *)&ptr) += 1;
-			unaligned_test(ptr, &val3);
-			* ((unsigned *)&ptr) += 1;
-			unaligned_test(ptr, &val4);
-*/
 		}
-/*
+
 		print_num(screen, font, screen->w-37, screen->h-12, fps);
-		print_num_hex(screen, font_hex, 0, 40, val0);
-		print_num_hex(screen, font_hex, 0, 60, val1);
-		print_num_hex(screen, font_hex, 0, 80, val2);
-		print_num_hex(screen, font_hex, 0, 100, val3);
-		print_num_hex(screen, font_hex, 0, 120, val4);
-		print_num_hex(screen, font_hex, 0, 180, 0x12345678);
-*/
 		++fps_count;
 
 		for(i=0; i<MAX_POINTERS; i++)
@@ -608,14 +575,17 @@ int main(int argc, char* argv[])
 		}
 		int mx, my;
 		int b = SDL_GetMouseState(&mx, &my);
+		//__android_log_print(ANDROID_LOG_INFO, "Ballfield", "Mouse buttons: %d", b);
 		Uint32 color = 0xff;
 		if( b )
 		{
 			color = 0;
-			if( b & SDL_BUTTON_LEFT )
-				color |= 0xff00;
-			if( b & SDL_BUTTON_RIGHT )
-				color |= 0xff0000;
+			if( b & SDL_BUTTON_LMASK )
+				color |= 0xf000;
+			if( b & SDL_BUTTON_RMASK )
+				color |= 0x1f0;
+			if( b & SDL_BUTTON_MMASK )
+				color |= 0x0f;
 		}
 		r.x = mx;
 		r.y = my;
@@ -631,9 +601,15 @@ int main(int argc, char* argv[])
 		{
 			if(evt.type == SDL_KEYUP || evt.type == SDL_KEYDOWN)
 			{
+				__android_log_print(ANDROID_LOG_INFO, "Ballfield", "SDL key event: evt %s state %s key %d scancode %d mod %d unicode %d", evt.type == SDL_KEYUP ? "UP  " : "DOWN" , evt.key.state == SDL_PRESSED ? "PRESSED " : "RELEASED", (int)evt.key.keysym.sym, (int)evt.key.keysym.scancode, (int)evt.key.keysym.mod, (int)evt.key.keysym.unicode);
 				if(evt.key.keysym.sym == SDLK_ESCAPE)
 					return 0;
-				__android_log_print(ANDROID_LOG_INFO, "Ballfield", "SDL key event: evt %s state %s key %d scancode %d mod %d unicode %d", evt.type == SDL_KEYUP ? "UP  " : "DOWN" , evt.key.state == SDL_PRESSED ? "PRESSED " : "RELEASED", (int)evt.key.keysym.sym, (int)evt.key.keysym.scancode, (int)evt.key.keysym.mod, (int)evt.key.keysym.unicode);
+			}
+			if(evt.type == SDL_MOUSEBUTTONUP || evt.type == SDL_MOUSEBUTTONDOWN)
+			{
+				__android_log_print(ANDROID_LOG_INFO, "Ballfield", "SDL mouse button event: evt %s state %s button %d coords %d:%d", evt.type == SDL_MOUSEBUTTONUP ? "UP  " : "DOWN" , evt.button.state == SDL_PRESSED ? "PRESSED " : "RELEASED", (int)evt.button.button, (int)evt.button.x, (int)evt.button.y);
+				if(evt.key.keysym.sym == SDLK_ESCAPE)
+					return 0;
 			}
 			if(evt.type == SDL_VIDEORESIZE)
 				__android_log_print(ANDROID_LOG_INFO, "Ballfield", "SDL resize event: %d x %d", evt.resize.w, evt.resize.h);
@@ -693,8 +669,5 @@ int main(int argc, char* argv[])
 	SDL_FreeSurface(back);
 	SDL_FreeSurface(logo);
 	SDL_FreeSurface(font);
-	std::ostringstream os;
-	os << "lalala" << std::endl << "more text" << std::endl;
-	std::cout << os.str() << std::endl << "text text" << std::endl;
-	exit(0);
+	return 0;
 }

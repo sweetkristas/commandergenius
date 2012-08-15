@@ -61,12 +61,14 @@ static jclass JavaRendererClass = NULL;
 static jobject JavaRenderer = NULL;
 static jmethodID JavaSwapBuffers = NULL;
 static jmethodID JavaShowScreenKeyboard = NULL;
+static jmethodID JavaToggleScreenKeyboardWithoutTextInput = NULL;
 static int glContextLost = 0;
 static int showScreenKeyboardDeferred = 0;
 static const char * showScreenKeyboardOldText = "";
 static int showScreenKeyboardSendBackspace = 0;
 int SDL_ANDROID_SmoothVideo = 0;
 int SDL_ANDROID_VideoMultithreaded = 0;
+int SDL_ANDROID_VideoForceSoftwareMode = 0;
 int SDL_ANDROID_CompatibilityHacks = 0;
 int SDL_ANDROID_BYTESPERPIXEL = 2;
 int SDL_ANDROID_BITSPERPIXEL = 16;
@@ -84,6 +86,8 @@ static void appRestoredCallbackDefault(void)
 
 static SDL_ANDROID_ApplicationPutToBackgroundCallback_t appPutToBackgroundCallback = appPutToBackgroundCallbackDefault;
 static SDL_ANDROID_ApplicationPutToBackgroundCallback_t appRestoredCallback = appRestoredCallbackDefault;
+static SDL_ANDROID_ApplicationPutToBackgroundCallback_t openALPutToBackgroundCallback = NULL;
+static SDL_ANDROID_ApplicationPutToBackgroundCallback_t openALRestoredCallback = NULL;
 
 int SDL_ANDROID_CallJavaSwapBuffers()
 {
@@ -120,6 +124,8 @@ int SDL_ANDROID_CallJavaSwapBuffers()
 		__android_log_print(ANDROID_LOG_INFO, "libSDL", "OpenGL context recreated, refreshing textures");
 		SDL_ANDROID_VideoContextRecreated();
 		appRestoredCallback();
+		if(openALRestoredCallback)
+			openALRestoredCallback();
 	}
 	if( showScreenKeyboardDeferred )
 	{
@@ -195,6 +201,9 @@ JAVA_EXPORT_NAME(DemoRenderer_nativeGlContextLost) ( JNIEnv*  env, jobject  thiz
 	__android_log_print(ANDROID_LOG_INFO, "libSDL", "OpenGL context lost, waiting for new OpenGL context");
 	glContextLost = 1;
 	appPutToBackgroundCallback();
+	if(openALPutToBackgroundCallback)
+		openALPutToBackgroundCallback();
+
 #if SDL_VERSION_ATLEAST(1,3,0)
 	//if( ANDROID_CurrentWindow )
 	//	SDL_SendWindowEvent(ANDROID_CurrentWindow, SDL_WINDOWEVENT_MINIMIZED, 0, 0);
@@ -215,6 +224,12 @@ JAVA_EXPORT_NAME(DemoRenderer_nativeGlContextRecreated) ( JNIEnv*  env, jobject 
 #else
 	SDL_PrivateAppActive(1, SDL_APPACTIVE|SDL_APPINPUTFOCUS|SDL_APPMOUSEFOCUS);
 #endif
+}
+
+int SDL_ANDROID_ToggleScreenKeyboardWithoutTextInput(void)
+{
+	(*JavaEnv)->CallVoidMethod( JavaEnv, JavaRenderer, JavaToggleScreenKeyboardWithoutTextInput );
+	return 1;
 }
 
 volatile static textInputFinished = 0;
@@ -270,11 +285,12 @@ JNIEXPORT void JNICALL
 JAVA_EXPORT_NAME(DemoRenderer_nativeInitJavaCallbacks) ( JNIEnv*  env, jobject thiz)
 {
 	JavaEnv = env; 
-	JavaRenderer = thiz;
+	JavaRenderer = (*JavaEnv)->NewGlobalRef( JavaEnv, thiz );
 	
 	JavaRendererClass = (*JavaEnv)->GetObjectClass(JavaEnv, thiz);
 	JavaSwapBuffers = (*JavaEnv)->GetMethodID(JavaEnv, JavaRendererClass, "swapBuffers", "()I");
 	JavaShowScreenKeyboard = (*JavaEnv)->GetMethodID(JavaEnv, JavaRendererClass, "showScreenKeyboard", "(Ljava/lang/String;I)V");
+	JavaToggleScreenKeyboardWithoutTextInput = (*JavaEnv)->GetMethodID(JavaEnv, JavaRendererClass, "showScreenKeyboardWithoutTextInputField", "()V");
 	
 	ANDROID_InitOSKeymap();
 }
@@ -293,6 +309,18 @@ int SDL_ANDROID_SetApplicationPutToBackgroundCallback(
 		appRestoredCallback = appRestored;
 }
 
+extern int SDL_ANDROID_SetOpenALPutToBackgroundCallback(
+		SDL_ANDROID_ApplicationPutToBackgroundCallback_t PutToBackground,
+		SDL_ANDROID_ApplicationPutToBackgroundCallback_t Restored );
+
+int SDL_ANDROID_SetOpenALPutToBackgroundCallback(
+		SDL_ANDROID_ApplicationPutToBackgroundCallback_t PutToBackground,
+		SDL_ANDROID_ApplicationPutToBackgroundCallback_t Restored )
+{
+	openALPutToBackgroundCallback = PutToBackground;
+	openALRestoredCallback = Restored;
+}
+
 JNIEXPORT void JNICALL
 JAVA_EXPORT_NAME(Settings_nativeSetSmoothVideo) (JNIEnv* env, jobject thiz)
 {
@@ -303,6 +331,12 @@ JNIEXPORT void JNICALL
 JAVA_EXPORT_NAME(Settings_nativeSetVideoMultithreaded) (JNIEnv* env, jobject thiz)
 {
 	SDL_ANDROID_VideoMultithreaded = 1;
+}
+
+JNIEXPORT void JNICALL
+JAVA_EXPORT_NAME(Settings_nativeSetVideoForceSoftwareMode) (JNIEnv* env, jobject thiz)
+{
+	SDL_ANDROID_VideoForceSoftwareMode = 1;
 }
 
 JNIEXPORT void JNICALL
